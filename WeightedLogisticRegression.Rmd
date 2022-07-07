@@ -1,0 +1,94 @@
+---
+title: "Weighted Logistic Regression"
+author: "T.M. Nestor"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# [Using case weights with tidymodels](https://www.tidyverse.org/blog/2022/05/case-weights/)
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# pkgs <- c("here", "tidyverse", "tidymodels")
+# pkgs |> purrr::map(\(x) suppressPackageStartupMessages(library(x)))
+if (!rlang::is_installed("pak")) {
+  install.packages("pak")
+}
+pkgs <- c("tidyverse", "tidymodels", "usethis")
+pak::pak(pkgs)
+library(usethis)
+# library(here)
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(tidymodels))
+```
+
+```{r}
+data("UCBAdmissions")
+UCBAdmissions |> dim()
+UCBAdmissions |> dimnames()
+```
+
+```{r}
+ucb <- 
+  as_tibble(UCBAdmissions) |>  
+  mutate(across(where(is.character), \(x) as.factor(x)))
+ucb
+```
+
+
+
+```{r}
+glm_fit <-
+  glm(
+    Admit ~ Gender + Dept,
+    data = ucb,
+    weights = n,
+    family = "binomial"
+  )
+glm_fit
+
+```
+```{r}
+ucb_grouped_data <- 
+  as_tibble(UCBAdmissions) |>  
+  mutate(across(where(is.character), \(x) as.factor(x))) |>  
+  pivot_wider(
+    id_cols = c(Gender, Dept),
+    names_from = Admit,
+    values_from = n,
+    values_fill = 0L
+  )
+ucb_grouped_data
+```
+```{r}
+glm(
+  cbind(Rejected, Admitted) ~ Gender + Dept,
+  data = ucb_grouped_data,
+  family = binomial
+)
+```
+```{r}
+ucb <- ucb %>% mutate(n = frequency_weights(n))
+ucb$n
+```
+
+```{r}
+set.seed(1)
+training_sim <- sim_classification(5000, intercept = -25) 
+training_sim %>% count(class)
+
+```
+
+```{r}
+training_sim <-
+  training_sim %>% 
+  mutate(
+    case_wts = ifelse(class == "class_1", 60, 1),
+    case_wts = importance_weights(case_wts)
+  )
+```
+
+```{r}
+grid <- tibble(penalty = 10^seq(-3, 0, length.out = 20))
+```
+
